@@ -9,13 +9,13 @@ on:
 jobs:
   Set-repos:
     name: "🐂 Parse repos.json"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     outputs:
       repos: ${{ steps.generate-matrix.outputs.repos }}
       builddate: ${{ steps.generate-builddate.outputs.builddate }}
     steps:
       - name: "😄 Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: "😆 Generate Matrix"
         id: generate-matrix
@@ -29,7 +29,7 @@ jobs:
 
   Build-Kernel:
     name: "🐎 Build kernel"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     needs:
       - Set-repos
     strategy:
@@ -57,7 +57,8 @@ jobs:
       - name: "⭐ Install prerequisites"
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libfl-dev
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libfl-dev libncurses5-dev libelf-dev zlib1g-dev
+          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
           sudo apt-get install -y curl git ftp lftp wget libarchive-tools ccache python3 python3-dev
           sudo apt-get install -y zip unzip tar gzip bzip2 rar unrar
 
@@ -145,14 +146,16 @@ jobs:
         id: generate-args
         env:
           params: "${{ toJSON(matrix.repos.params) }}"
-          THREAD: $(nproc --all)
         run: |
           echo "🤔 PATH Variable: $PATH"
+          
+          THREAD=$(nproc --all)
+          echo "🤔 Threads: $THREAD"
 
           ARCH=$(echo $params | jq -r ".ARCH")
           CC=$(echo $params | jq -r ".CC")
 
-          args="-j${{ env.THREAD }}"
+          args="-j${THREAD}"
           if [ -n "${{ env.OUT_DIR }}" ]; then
             mkdir -p ${{ env.OUT_DIR }} && args="$args O=${{ env.OUT_DIR }}"
           fi
@@ -160,13 +163,12 @@ jobs:
             args="$args ARCH=$ARCH"
           fi
           if [ -n "$CC" ]; then
-
             if [[ "$CC" == *"/"* ]]; then
               CC=${{ env.WORKSPACE }}/$CC
             fi
 
             if [ ${{ env.ccache }} = true ]; then
-              args="$args CC=\"ccache $CC\""
+              args="$args CC=ccache\ $CC"
             else
               args="$args CC=$CC"
             fi
